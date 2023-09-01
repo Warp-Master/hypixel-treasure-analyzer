@@ -1,85 +1,44 @@
-import lxml.html
-from urllib.request import urlopen
-from lxml.cssselect import CSSSelector
-from collections import namedtuple
-from itertools import filterfalse
 import json
-from collections import Counter
+import os.path
+from collections import Counter, namedtuple
+from functools import partial
+from itertools import filterfalse
+from textwrap import fill
+from urllib.request import urlopen
 
+import lxml.html
+from lxml.cssselect import CSSSelector
 
 sel = CSSSelector('.hp-tabber .hp-tabcontent:not(#Metal_Detector_)')
 Location = namedtuple('Location', ('name', 'high_tier_table', 'low_tier_table'))
 Drop = namedtuple('Drop', ('name', 'amount', 'chance'))
 
-name_map = {
-    'Ascension Rope': 'ASCENSION_ROPE',
-    'Blue Goblin Egg': 'GOBLIN_EGG_BLUE',
-    'Control Switch': 'CONTROL_SWITCH',
-    'Electron Transmitter': 'ELECTRON_TRANSMITTER',
-    'FTX 3070': 'FTX_3070',
-    'Fine Amber Gemstone': 'FINE_AMBER_GEM',
-    'Fine Amethyst Gemstone': 'FINE_AMETHYST_GEM',
-    'Fine Jade Gemstone': 'FINE_JADE_GEM',
-    'Fine Jasper Gemstone': 'FINE_JASPER_GEM',
-    'Fine Ruby Gemstone': 'FINE_RUBY_GEM',
-    'Fine Sapphire Gemstone': 'FINE_SAPPHIRE_GEM',
-    'Fine Topaz Gemstone': 'FINE_TOPAZ_GEM',
-    'Flawed Amber Gemstone': 'FLAWED_AMBER_GEM',
-    'Flawed Amethyst Gemstone': 'FLAWED_AMETHYST_GEM',
-    'Flawed Jade Gemstone': 'FLAWED_JADE_GEM',
-    'Flawed Jasper Gemstone': 'FLAWED_JASPER_GEM',
-    'Flawed Ruby Gemstone': 'FLAWED_RUBY_GEM',
-    'Flawed Sapphire Gemstone': 'FLAWED_SAPPHIRE_GEM',
-    'Flawed Topaz Gemstone': 'FLAWED_TOPAZ_GEM',
-    'Flawless Amber Gemstone': 'FLAWLESS_AMBER_GEM',
-    'Flawless Amethyst Gemstone': 'FLAWLESS_AMETHYST_GEM',
-    'Flawless Jade Gemstone': 'FLAWLESS_JADE_GEM',
-    'Flawless Jasper Gemstone': 'FLAWLESS_JASPER_GEM',
-    'Flawless Ruby Gemstone': 'FLAWLESS_RUBY_GEM',
-    'Flawless Sapphire Gemstone': 'FLAWLESS_SAPPHIRE_GEM',
-    'Flawless Topaz Gemstone': 'FLAWLESS_TOPAZ_GEM',
-    # 'Gemstone Powder': '',
-    'Goblin Egg': 'GOBLIN_EGG',
-    'Green Goblin Egg': 'GOBLIN_EGG_GREEN',
-    'Jungle Heart': 'JUNGLE_HEART',
-    # 'Mithril Powder': '',
-    'Oil Barrel': 'OIL_BARREL',
-    'Pickonimbus 2000': 'PICKONIMBUS',
-    'Prehistoric Egg': 'PREHISTORIC_EGG',
-    'Red Goblin Egg': 'GOBLIN_EGG_RED',
-    'Robotron Reflector': 'ROBOTRON_REFLECTOR',
-    'Rough Amber Gemstone': 'ROUGH_AMBER_GEM',
-    'Rough Amethyst Gemstone': 'ROUGH_AMETHYST_GEM',
-    'Rough Jade Gemstone': 'ROUGH_JADE_GEM',
-    'Rough Jasper Gemstone': 'ROUGH_JASPER_GEM',
-    'Rough Ruby Gemstone': 'ROUGH_RUBY_GEM',
-    'Rough Sapphire Gemstone': 'ROUGH_SAPPHIRE_GEM',
-    'Rough Topaz Gemstone': 'ROUGH_TOPAZ_GEM',
-    'Sludge Juice': 'SLUDGE_JUICE',
-    'Superlite Motor': 'SUPERLITE_MOTOR',
-    'Synthetic Heart': 'SYNTHETIC_HEART',
-    'Treasurite': 'TREASURITE',
-    'Wishing Compass': 'WISHING_COMPASS',
-    'Yellow Goblin Egg': 'GOBLIN_EGG_YELLOW',
-    'Yoggie': 'YOGGIE'
-}
-price_cache = dict()
-not_valuable_drops = {'Mithril Powder', 'Gemstone Powder'}
-
+AH_PRICES_PATH = 'ah-prices.json'
+NAME_MAP_PATH = 'name-map.json'
 WIKI_URL = 'https://wiki.hypixel.net/Crystal_Hollows'
 BAZAAR_API_URL = 'https://api.hypixel.net/skyblock/bazaar'
+OUTPUT_WIDTH = 53
+
+fill = partial(fill, width=OUTPUT_WIDTH)
+ah_prices = dict()
+updated_prices = set()
+not_valuable_drops = {'Mithril Powder', 'Gemstone Powder'}
+
+with open(NAME_MAP_PATH) as file:
+    NAME_MAP = json.load(file)
 
 def get_drops(tbody, chance_multiplier=1.0):
     res = []
     for line in tbody.findall('tr')[2:]:
         cols = [next(filterfalse(str.isspace, col.itertext()), '').strip() \
                 for col in line.iterfind('td')]
-        name = name_map.get(cols[0], cols[0])
+        name = NAME_MAP.get(cols[0], cols[0])
         amounts = cols[1].replace(',', '').split('-')
         avg_amount = sum(map(int, amounts)) / len(amounts)
         chance = float(cols[2][:-1]) / 100 * 4.5 * chance_multiplier
         res.append(Drop(name, avg_amount, chance))
     return res
+
 
 def get_profit(drops, bazaar_data):
     res = Counter()
@@ -89,18 +48,39 @@ def get_profit(drops, bazaar_data):
         elif drop.name in not_valuable_drops:
             res[drop.name] += drop.amount * drop.chance
             continue
-        elif drop.name in price_cache:
-            price = price_cache[drop.name]
+        elif drop.name in updated_prices:
+            continue
         else:
-            price = float(input(f'Input price for {drop.name}: '))
-            price_cache[drop.name] = price
+            price_str = input(
+                f'Input price for {drop.name} [{ah_prices.get(drop.name, 0)}]: '
+            ).strip()
+            if price_str:
+                price = float(price_str)
+                ah_prices[drop.name] = price
+            else:
+                price = ah_prices.get(drop.name, 0)
+            updated_prices.add(drop.name)
         res['coins'] += price * drop.amount * drop.chance
     return res
 
 
+def print_counts(counter):
+    for location, count in counter.most_common():
+        print(f'{location:<21}{count:{OUTPUT_WIDTH-21}.4f}')
+
+
 def main():
+    global ah_prices
+    # load ah prices if file exists
+    if os.path.exists(AH_PRICES_PATH):
+        with open(AH_PRICES_PATH) as file:
+            ah_prices = json.load(file)
+
+    # load wiki page with chance information
     with urlopen(WIKI_URL) as resp:
         wiki_page = lxml.html.parse(resp)
+
+    # load bazaar prices from hypixel API
     with urlopen(BAZAAR_API_URL) as resp:
         bazaar_data = json.load(resp)['products']
 
@@ -108,6 +88,7 @@ def main():
     mithril_dst_counter = Counter()
     gemstone_dst_counter = Counter()
     content = sel(wiki_page)
+    print(fill("Press <Return> to use the default price in square brackets. The values will be saved between runs."))
     for el in content:
         location_name = el.attrib.get('id')[:-1]
         tables = el.findall('.//div/table/tbody')
@@ -120,12 +101,20 @@ def main():
         coins_counter[location_name] = location_profit['coins']
         mithril_dst_counter[location_name] = location_profit['Mithril Powder']
         gemstone_dst_counter[location_name] = location_profit['Gemstone Powder']
-    print(f"{'COINS':=^40}")
-    print(*coins_counter.most_common(), sep='\n')
-    print(f"{'MITHRIL POWDER':=^40}")
-    print(*mithril_dst_counter.most_common(), sep='\n')
-    print(f"{'GEMSTONE POWDER':=^40}")
-    print(*gemstone_dst_counter.most_common(), sep='\n')
+    
+    # save cache to file
+    with open(AH_PRICES_PATH, 'w') as file:
+        json.dump(ah_prices, file)
+    
+    print('='*OUTPUT_WIDTH)
+    print(fill("If you use Jungle Pickaxe don't forget to add extra Sludge Juice profits to Jungle location."))
+    print("Formula for this:\n1/_your_chest_spawn_chance_*0.03*_sludge_juice_price_")
+    print(f"{'<COINS>':=^{OUTPUT_WIDTH}}")
+    print_counts(coins_counter)
+    print(f"{'<MITHRIL POWDER>':=^{OUTPUT_WIDTH}}")
+    print_counts(mithril_dst_counter)
+    print(f"{'<GEMSTONE POWDER>':=^{OUTPUT_WIDTH}}")
+    print_counts(gemstone_dst_counter)
 
 if __name__ == "__main__":
     main()
