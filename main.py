@@ -5,6 +5,7 @@ from functools import partial
 from itertools import filterfalse
 from textwrap import fill
 from urllib.request import urlopen
+import configparser
 
 import lxml.html
 from lxml.cssselect import CSSSelector
@@ -13,11 +14,15 @@ sel = CSSSelector('.hp-tabber .hp-tabcontent:not(#Metal_Detector_)')
 Location = namedtuple('Location', ('name', 'high_tier_table', 'low_tier_table'))
 Drop = namedtuple('Drop', ('name', 'amount', 'chance'))
 
-AH_PRICES_PATH = 'ah-prices.json'
-NAME_MAP_PATH = 'name-map.json'
-WIKI_URL = 'https://wiki.hypixel.net/Crystal_Hollows'
-BAZAAR_API_URL = 'https://api.hypixel.net/skyblock/bazaar'
-OUTPUT_WIDTH = 53
+config = configparser.ConfigParser()
+config.read('config.ini')
+config = config['DEFAULT']
+
+AH_PRICES_PATH = config['AH_PRICES_PATH']
+NAME_MAP_PATH = config['NAME_MAP_PATH']
+WIKI_URL = config['WIKI_URL']
+BAZAAR_API_URL = config['BAZAAR_API_URL']
+OUTPUT_WIDTH = int(config['OUTPUT_WIDTH'])
 
 fill = partial(fill, width=OUTPUT_WIDTH)
 ah_prices = dict()
