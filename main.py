@@ -23,6 +23,8 @@ NAME_MAP_PATH = config['NAME_MAP_PATH']
 WIKI_URL = config['WIKI_URL']
 BAZAAR_API_URL = config['BAZAAR_API_URL']
 OUTPUT_WIDTH = int(config['OUTPUT_WIDTH'])
+CHEST_SPAWN_CHANCE = float(config.get('CHEST_SPAWN_CHANCE', float('inf')))
+SLUDGE_PICK = bool(int(config.get('SLUDGE_PICK', False)))
 
 fill = partial(fill, width=OUTPUT_WIDTH)
 ah_prices = dict()
@@ -109,11 +111,18 @@ def main():
     
     # save cache to file
     with open(AH_PRICES_PATH, 'w') as file:
-        json.dump(ah_prices, file)
-    
-    print('='*OUTPUT_WIDTH)
-    print(fill("If you use Jungle Pickaxe don't forget to add extra Sludge Juice profits to Jungle location."))
-    print("Formula for this:\n1/_your_chest_spawn_chance_*0.03*_sludge_juice_price_")
+        json.dump(ah_prices, file)    
+
+    sludge_pick_profit = get_profit(
+        [Drop('SLUDGE_JUICE', 1e4 / CHEST_SPAWN_CHANCE, 0.03)],
+        bazaar_data
+    ).get('coins', 0)
+    if SLUDGE_PICK:
+        coins_counter['Jungle'] += sludge_pick_profit
+    else:
+        print('='*OUTPUT_WIDTH)
+        print(fill(f"If you use Jungle Pickaxe don't forget to add extra Sludge Juice profits to Jungle location. [{sludge_pick_profit:.2f}]"))
+        print(fill("Or add \"SLUDGE_PICK=1\" to config.ini to do it automaticly"))
     print(f"{'<COINS>':=^{OUTPUT_WIDTH}}")
     print_counts(coins_counter)
     print(f"{'<MITHRIL POWDER>':=^{OUTPUT_WIDTH}}")
