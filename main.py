@@ -42,7 +42,7 @@ def get_drops(tbody, chance_multiplier=1.0):
         name = NAME_MAP.get(cols[0], cols[0])
         amounts = cols[1].replace(',', '').split('-')
         avg_amount = sum(map(int, amounts)) / len(amounts)
-        chance = float(cols[2][:-1]) / 100 * 4.5 * chance_multiplier
+        chance = float(cols[-1].replace("%", "e-2")) * chance_multiplier
         res.append(Drop(name, avg_amount, chance))
     return res
 
@@ -98,7 +98,7 @@ def main():
     print(fill("Press <Return> to use the default price in square brackets. The values will be saved between runs."))
     for el in content:
         location_name = el.attrib.get('id')[:-1]
-        tables = el.findall('.//div/table/tbody')
+        tables = el.findall('.//table/tbody')
         location = Location(location_name, *tables)
         # print(location)
         high_drops = get_drops(location.high_tier_table, chance_multiplier=0.05)
