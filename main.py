@@ -71,7 +71,8 @@ def get_profit(drops, bazaar_data):
     return res
 
 
-def print_counts(counter):
+def print_counts(title, counter):
+    print(f"{f'<{title}>':=^{OUTPUT_WIDTH}}")
     for location, count in counter.most_common():
         print(f'{location:<21}{count:{OUTPUT_WIDTH-21}.4f}')
 
@@ -123,12 +124,9 @@ def main():
         print('='*OUTPUT_WIDTH)
         print(fill(f"If you use Jungle Pickaxe don't forget to add extra Sludge Juice profits to Jungle location. [{sludge_pick_profit:.2f}]"))
         print(fill("Or add \"SLUDGE_PICK=1\" to config.ini to do it automaticly"))
-    print(f"{'<COINS>':=^{OUTPUT_WIDTH}}")
-    print_counts(coins_counter)
-    print(f"{'<MITHRIL POWDER>':=^{OUTPUT_WIDTH}}")
-    print_counts(mithril_dst_counter)
-    print(f"{'<GEMSTONE POWDER>':=^{OUTPUT_WIDTH}}")
-    print_counts(gemstone_dst_counter)
+    print_counts("COINS", coins_counter)
+    print_counts("MITHRIL POWDER", mithril_dst_counter)
+    print_counts("GEMSTONE POWDER", gemstone_dst_counter)
 
 if __name__ == "__main__":
     main()
